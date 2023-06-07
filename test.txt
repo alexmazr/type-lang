@@ -1,3 +1,4 @@
 type u8 is unsigned<8>;
 type i16 is signed<16>;
+weird
 
