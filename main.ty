@@ -1,0 +1,63 @@
+//use abs.import;
+//use .rel.import;
+//use ..rel.supercool.use.import;
+//
+//type u8 is unsigned<8>;
+//type Cool is U8;
+//type u16 is unsigned<16>;
+
+// type String is string<utf8>;
+
+// const String message = "hello";
+
+// todo: probably add a print statement
+//fn main() {
+//    Cool coolValue = -(23 + 2) * 3 -6+3;
+//    U8 u8Value = coolValue + 3;
+//    fn inner() {
+//        U8 test = 0;
+//    }
+//    mut String hm = new String; // main owns this in terms of free'ing
+//    doStuff(give hm); // after this hm will be free'd
+//    
+//    String name = input("What's your name? "); // new will allocate in this scope
+//    print("hello {name}"); // name is going to be borrowed here, but it's read-only
+//} // name will be free'd here
+
+fn add(u8 x, u8 y) u8! {
+    return x + y;
+}
+
+fn doStuff(take String x) {
+
+}
+
+
+// new denotes that String is malloc'd and on the heap, caller can free it
+//fn input(String prompt) new String {
+//    // code to prompt terminal and then malloc
+//}
+
+
+@pre(x) // expression assertions, these will panic if false
+@post(y) // will run after the function, can reference 'fn name'
+fn add(u8 x, u8 y) u8 {
+    return x + y;
+}
+
+// The above will compile into roughly
+//fn add(u8 x, u8 y) u8 {
+//    assert(x < 3 and y < 5);
+//    u8 add = x + y;
+//    assert(add % 2 == 1 and add > x);
+//    return add;
+//}
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,49 @@
+Following is a reference grammar for Type
+
+program : import_statement+ statement+ EOF
+
+type Format is enum<u8> {
+    Ascii = 8,
+    Utf8 = 8,
+    Utf16 = 16;
+}
+
+type 
+
+type Char<F is Format> is unsigned<F.value())>;
+
+import_statement:
+    | IMPORT path ENDLINE
+    | IMPORT rel_path ENDLINE
+
+statement:
+    | definition_statement
+    | assignment_statement
+
+definition_statement:
+    | TYPE TYPE_NAME is BIT_REP ENDLINE
+    | TYPE TYPE_NAME is TYPE_NAME ENDLINE
+
+path:
+    | WORD
+    | path '/' WORD
+
+rel_path: SINGLE_OR_DOUBLE_DOT '/' path
+
+SINGLE_OR_DOUBLE_DOT: '..' | '.'
+WORD: [a-zA-Z][a-zA-Z0-9]+
+
+
+IMPORT: 'import'
+TYPE: 'type'
+TYPE_NAME: [A-Z][a-zA-Z0-9]+
+NUMERIC: [0-9]+
+
+BIT_REP: BIT_REP_TYPE '<' NUMERIC '>'
+BIT_REP_TYPE: 
+    | 'unsigned'
+    | 'signed'
+    | 'float'
+
+ENDLINE: ';'
+
