@@ -24,26 +24,45 @@
 //    print("hello {name}"); // name is going to be borrowed here, but it's read-only
 //} // name will be free'd here
 
-fn add(u8 x, u8 y) u8! {
-    return x + y;
+//fn add(u8 x, u8 y) u8 {
+//    return x + y;
+//}
+
+//fn swap(take mut u6 x, u7!? y) {
+//    mut u8! temp3 = y;
+//    y = x;
+//    x = temp;
+//}
+//
+//fn useSwap() {
+//    mut u8 x = 2;
+//    mut u8 y = 3;
+//    swap(give 4, give y);
+//}
+//
+fn addTwo(mut u8 x, u8! y, mut u8? z) {
+    mut String y = new "hello";
+    mut String z = shared "hello";
+    return x;
 }
 
-fn doStuff(take String x) {
-
-}
+//fn doStuff(take String x) {
+//
+//}
 
 
 // new denotes that String is malloc'd and on the heap, caller can free it
-//fn input(String prompt) new String {
+//@pre(x)
+//fn input(String prompt) give String {
 //    // code to prompt terminal and then malloc
 //}
 
 
-@pre(x) // expression assertions, these will panic if false
-@post(y) // will run after the function, can reference 'fn name'
-fn add(u8 x, u8 y) u8 {
-    return x + y;
-}
+//@pre(x) // expression assertions, these will panic if false
+//@post(y) // will run after the function, can reference 'fn name'
+//fn addCondition(u8 x, u8 y) u8 {
+//    return x + y;
+//}
 
 // The above will compile into roughly
 //fn add(u8 x, u8 y) u8 {

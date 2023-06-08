@@ -31,6 +31,8 @@ def p_compound_statements(p):
         p[0] = p[1]
     elif len(p) == 2:
         p[0] = [p[1]]
+    else:
+        p[0] = []
 
 
 def p_compound_statement(p):
@@ -38,7 +40,6 @@ def p_compound_statement(p):
     compound_statement : type_definition
                        | function_definition
                        | use_statement
-                       | annotation
     '''
     p[0] = p[1]
 
@@ -52,13 +53,16 @@ def p_use_statement(p):
 
 def p_function_definition(p):
     '''
-    function_definition : FN NAME LPAREN arguments RPAREN block
-                        | FN NAME LPAREN arguments RPAREN typename block
+    function_definition : annotations FN NAME LPAREN arguments RPAREN block
+                        | annotations FN NAME LPAREN arguments RPAREN typename block
+                        | annotations FN NAME LPAREN arguments RPAREN GIVE typename block
     '''
-    if len(p) == 8:
-        p[0] = ast.FnDef(p[2], p[4], p[6], p[7])
+    if len(p) == 10:
+        p[0] = ast.FnDef(p[3], p[1], p[5], True, p[8], p[9])
+    elif len(p) == 9:
+        p[0] = ast.FnDef(p[3], p[1], p[5], False, p[7], p[8])
     else:
-        p[0] = ast.FnDef(p[2], p[4], ast.Void(), p[5])
+        p[0] = ast.FnDef(p[3], p[1], p[5], False, ast.TypeData('void', None, None), p[7])
 
 
 def p_arguments(p):
@@ -72,11 +76,56 @@ def p_arguments(p):
         p[0] = p[1]
     elif len(p) == 2:
         p[0] = [p[1]]
+    else:
+        p[0] = []
 
 
 def p_argument(p):
-    'argument : typename NAME'
-    p[0] = ast.Argument(p[1], p[2])
+    '''
+    argument : typename NAME
+             | TAKE typename NAME
+    '''
+    if len(p) == 4:
+        p[0] = ast.Argument(p[2], p[3], True)
+    else:
+        p[0] = ast.Argument(p[1], p[2], False)
+
+
+def p_parameters(p):
+    '''
+    parameters :
+               | parameter
+               | parameters COMMA parameter
+    '''
+    if len(p) == 4:
+        p[1].append(p[3])
+        p[0] = p[1]
+    elif len(p) == 2:
+        p[0] = [p[1]]
+
+
+def p_parameter(p):
+    '''
+    parameter : qualified_expression
+              | GIVE qualified_expression
+    '''
+    if len(p) == 3:
+        p[0] = ast.Parameter(p[2], True)
+    else:
+        p[0] = ast.Parameter(p[1], False)
+
+
+def p_annotations(p):
+    '''
+    annotations :
+                | annotation
+                | annotations annotation
+    '''
+    if len(p) == 3:
+        p[1].append(p[2])
+        p[0] = p[1]
+    elif len(p) == 2:
+        p[0] = [p[1]]
 
 
 def p_annotation(p):
@@ -127,18 +176,40 @@ def p_simple_statement(p):
     '''
     simple_statement : declaration
                      | return
+                     | assign
+                     | call SEMICOLON
     '''
     p[0] = p[1]
 
 
+def p_declaration(p):
+    'declaration : typename assign'
+    p[0] = ast.Declare(p[1], p[2].name, p[2].expr)
+
+
+def p_assign(p):
+    'assign : NAME ASSIGN qualified_expression SEMICOLON'
+    p[0] = ast.Assign(p[1], p[3])
+
+
 def p_return(p):
-    'return : RETURN expression SEMICOLON'
+    'return : RETURN qualified_expression SEMICOLON'
     p[0] = ast.Return(p[2])
 
 
-def p_declaration(p):
-    'declaration : typename NAME ASSIGN expression SEMICOLON'
-    p[0] = ast.Declare(p[1], p[2], p[4])
+def p_qualified_expression(p):
+    '''
+    qualified_expression : expression
+                         | NEW expression
+                         | SHARED expression
+    '''
+    if len(p) == 3:
+        if p[1] == 'new':
+            p[0] = ast.New(p[2])
+        else:
+            p[0] = ast.Shared(p[2])
+    else:
+        p[0] = p[1]
 
 
 def p_expression(p):
@@ -178,11 +249,25 @@ def p_term(p):
 
 def p_unary(p):
     '''
-    unary : value
-          | SUB value
+    unary : call
+          | SUB call
     '''
     if len(p) == 3:
         p[0] = ast.USub(p[2])
+    else:
+        p[0] = p[1]
+
+
+def p_call(p):
+    '''
+    call : call LPAREN parameters RPAREN
+         | call DOT NAME
+         | value
+    '''
+    if len(p) == 5:
+        p[0] = ast.Call(p[1], p[3])
+    elif len(p) == 4:
+        p[0] = p[3]
     else:
         p[0] = p[1]
 
@@ -191,6 +276,7 @@ def p_value(p):
     '''
     value : ref
           | integer
+          | string
           | group
     '''
     p[0] = p[1]
@@ -204,6 +290,11 @@ def p_group(p):
 def p_ref(p):
     'ref : NAME'
     p[0] = ast.Ref(p[1])
+
+
+def p_string(p):
+    'string : STRING'
+    p[0] = ast.String(p[1])
 
 
 def p_integer(p):
@@ -234,19 +325,39 @@ def p_unsigned(p):
 def p_typename(p):
     '''
     typename : NAME
-             | NAME QUESTION
-             | NAME BANG
-             | NAME QUESTION BANG
+             | NAME typepostfix
+             | typeprefix NAME
+             | typeprefix NAME typepostfix
     '''
     if len(p) == 2:
-        p[0] = ast.TypeName(p[1], False, False)
+        p[0] = ast.TypeData(p[1], None, None)
     elif len(p) == 3:
-        if p[2] == '?':
-            p[0] = ast.TypeName(p[1], True, False)
-        elif p[2] == '!':
-            p[0] = ast.TypeName(p[1], False, True)
+        if '!' in p[2] or '?' in p[2]:  # is postfixed
+            p[0] = ast.TypeData(p[1], None, p[2])
+        else:
+            p[0] = ast.TypeData(p[2], p[1], None)
     else:
-        p[0] = ast.TypeName(p[1], True, True)
+        p[0] = ast.TypeData(p[2], p[1], p[3])
+
+
+def p_typeprefix(p):
+    '''
+    typeprefix : MUT
+    '''
+    p[0] = p[1]
+
+
+def p_typeportfix(p):
+    '''
+    typepostfix : BANG
+                | QUESTION
+                | BANG QUESTION
+                | QUESTION BANG
+    '''
+    if len(p) == 2:
+        p[0] = p[1]
+    else:
+        p[0] = f"{p[1]}{p[2]}"
 
 
 def p_error(p):
@@ -256,5 +367,5 @@ def p_error(p):
         # Ignore any newline characters that are unhandled in our grammar
             typeParser.errok()
             return typeParser.token()
-        raise SystemExit(f"Syntax error: '{p.value}' on line: {p.lineno}, {p.lexpos}")
+        raise SystemExit(f"Syntax error: '{p.value}' on line: {p.lineno}, {p.lexpos}, {p}")
     raise SystemExit(f"An unknown error occured while parsing")

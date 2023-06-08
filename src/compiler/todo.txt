@@ -1,0 +1,8 @@
+Just too keep a list of things todo and thing's I've done.
+
+goals for v0
+[] type check the AST, build type registry
+[] ownership check the AST
+[] returns a flat AST + function registry + type registry
+
+^ the last step should be enough for v0 runtime to run a program

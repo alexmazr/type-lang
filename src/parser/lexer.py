@@ -19,13 +19,19 @@ reserved_words = {
     'return': 'RETURN',
     'pre': 'PRE',
     'post': 'POST',
+    'mut': 'MUT',
+    'give': 'GIVE',
+    'take': 'TAKE',
+    'new': 'NEW',
+    'shared': 'SHARED',
     'unsigned': 'UNSIGNED'
 }
 
 tokens = ('USE', 'TYPE', 'IS', 'UNSIGNED', 'NAME', 'INTEGER', 'LT', 'GT',
           'SEMICOLON', 'ADD', 'SUB', 'MUL', 'DIV', 'ASSIGN', 'RETURN',
           'LPAREN', 'RPAREN', 'FN', 'LCURLY', 'RCURLY', 'COMMA', 'BANG',
-          'QUESTION', 'AT', 'PRE', 'POST')
+          'QUESTION', 'AT', 'PRE', 'POST', 'MUT', 'GIVE', 'TAKE', 'DOT',
+          'NEW', 'STRING', 'SHARED')
 
 
 # ignore comments
@@ -37,6 +43,12 @@ def t_COMMENT(t):
 def t_USE(t):
     r'use (.*);'
     t.type = 'USE'
+    return t
+
+
+def t_STRING(t):
+    r'"([^"\\]|\\.)*"'
+    t.value = t.value[1:-1]
     return t
 
 
@@ -87,7 +99,7 @@ t_RPAREN = r'\)'
 t_LCURLY = r'\{'
 t_RCURLY = r'\}'
 t_ASSIGN = r'='
-# t_DOT = r'\.'
+t_DOT = r'\.'
 t_COMMA = r','
 t_LT = r'<'
 t_GT = r'>'
