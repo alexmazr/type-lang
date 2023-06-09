@@ -15,6 +15,8 @@ if __name__ == '__main__':
         with open(sys.argv[2], 'r') as file:
             tyo = compiler.compile(parser.parse(sys.argv[2], file.read()))
             unchecked.run(tyo[0], tyo[1])
+    elif sys.argv[1] == 'ast':
+        with open(sys.argv[2], 'r') as file:
+            print(parser.parse(sys.argv[2], file.read()))
     else:
-        with open(sys.argv[1], 'r') as file:
-            print(parser.parse(sys.argv[1], file.read()))
+        print('Invalid command')

@@ -3,6 +3,9 @@ class Program:
         self.name = name
         self.statements = statements
 
+    def flatten(self):
+        return [stmt for statement in self.statements for stmt in statement.flatten()]
+
     def __repr__(self):
         return (
             f"{type(self).__name__}("
@@ -15,6 +18,11 @@ class Assign:
     def __init__(self, name, expr):
         self.name = name
         self.expr = expr
+
+    def flatten(self):
+        flatExpr = self.expr.flatten()
+        self.expr = flatExpr.pop()
+        return flatExpr + [self]
 
     def __repr__(self):
         return (
@@ -71,6 +79,11 @@ class Declare:
         self.name = name
         self.expr = expr
 
+    def flatten(self):
+        flatExpr = self.expr.flatten()
+        self.expr = flatExpr.pop()
+        return flatExpr + [self]
+
     def __repr__(self):
         return (
             f"{type(self).__name__}("
@@ -106,6 +119,11 @@ class Return:
     def __init__(self, expr):
         self.expr = expr
 
+    def flatten(self):
+        flatExpr = self.expr.flatten()
+        self.expr = flatExpr.pop()
+        return flatExpr + [self]
+
     def __repr__(self):
         return (
             f"{type(self).__name__}("
@@ -136,9 +154,32 @@ class Post:
 
 
 class BinOp:
-    def __init__(self, left, right):
+    def __init__(self, left, right, op):
         self.left = left
         self.right = right
+        self.op = op
+
+    def flatten(self):
+        print(f"flattening {self}")
+        if isinstance(self.left, Literal):
+            print("left is literal")
+            if isinstance(self.right, Literal):
+                print("right is literal")
+                if type(self.left) is type(self.right):
+                    print("same literal types")
+                    # try:
+                    return [eval(f"{type(self.left).__name__}(self.left.value {self.op} self.right.value)")] # compute literal
+                    # except Exception:
+                    #     raise SystemExit(f"Invalid expression: '{self.left.value}' {self.op} '{self.right.value}'")
+                else:
+                    raise SystemExit(f"Cannot add two different literal types '{self.left}' and '{self.right}'")
+            self.right = self.right.flatten()
+        elif isinstance(self.right, Literal):
+            self.left = self.left.flatten()
+        else:
+            self.left = self.left.flatten()
+            self.right = self.right.flatten()
+        return [self]
 
     def __repr__(self):
         return (
@@ -150,22 +191,22 @@ class BinOp:
 
 class Add(BinOp):
     def __init__(self, left, right):
-        super().__init__(left, right)
+        super().__init__(left, right, '+')
 
 
 class Sub(BinOp):
     def __init__(self, left, right):
-        super().__init__(left, right)
+        super().__init__(left, right, '-')
 
 
 class Mul(BinOp):
     def __init__(self, left, right):
-        super().__init__(left, right)
+        super().__init__(left, right, '*')
 
 
 class Div(BinOp):
     def __init__(self, left, right):
-        super().__init__(left, right)
+        super().__init__(left, right, '/')
 
 
 class UnaryOp:
@@ -239,6 +280,10 @@ class FnDef:
         self.rtype = rtype
         self.statements = statements
 
+    def flatten(self):
+        self.statements = [stmt for statement in self.statements for stmt in statement.flatten()]
+        return [self]
+
     def __repr__(self):
         return (
             f"{type(self).__name__}("
@@ -273,7 +318,12 @@ class TypeData:
         )
 
 
-class String:
+class Literal:
+    def flatten(self):
+        return [self]
+
+
+class String(Literal):
     def __init__(self, value):
         self.value = value
 
@@ -284,7 +334,7 @@ class String:
         )
 
 
-class Integer:
+class Integer(Literal):
     def __init__(self, value):
         self.value = value
 
@@ -298,6 +348,9 @@ class Integer:
 class Ref:
     def __init__(self, name):
         self.name = name
+
+    def flatten(self):
+        return [self]
 
     def __repr__(self):
         return (

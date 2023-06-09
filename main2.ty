@@ -1,14 +1,11 @@
-type u8 is unsigned<8>;
-
 fn main() {
-    String name = input("What's your name?");
-    print(give "hello " + name);
+    // mutable byte called 'name' that equals some expression
+    mut u8 name = 2 - ("x" + "t");
+    // update 'name' to equal "hello"
+    name = "hello";
 }
 
 
-type u16 is unsigned<16>;
-
-
-
-
-
+fn add(u8 x, u8 y) u8 {
+    return x + x;
+}
