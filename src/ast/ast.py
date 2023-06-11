@@ -1,10 +1,14 @@
+import uuid
+
+
 class Program:
     def __init__(self, name, statements):
         self.name = name
         self.statements = statements
 
     def flatten(self):
-        return [stmt for statement in self.statements for stmt in statement.flatten()]
+        self.statements = [stmt for statement in self.statements for stmt in statement.flatten()]
+        return self
 
     def __repr__(self):
         return (
@@ -14,15 +18,24 @@ class Program:
         )
 
 
-class Assign:
+class ExpressionContainer:
+    def flatten(self):
+        flatExpr = self.expr.flatten()
+        if isinstance(flatExpr, list):
+            self.expr = flatExpr.pop()
+            return flatExpr + [self]
+        elif isinstance(flatExpr, TempDef):
+            self.expr = flatExpr.expr
+            return [self]
+        else:
+            self.expr = flatExpr
+            return [self]
+
+
+class Assign(ExpressionContainer):
     def __init__(self, name, expr):
         self.name = name
         self.expr = expr
-
-    def flatten(self):
-        flatExpr = self.expr.flatten()
-        self.expr = flatExpr.pop()
-        return flatExpr + [self]
 
     def __repr__(self):
         return (
@@ -47,7 +60,7 @@ class Argument:
         )
 
 
-class Parameter:
+class Parameter(ExpressionContainer):
     def __init__(self, expr, give):
         self.expr = expr
         self.give = give
@@ -65,6 +78,26 @@ class Call:
         self.name = name
         self.params = params
 
+    def flatten(self):
+        if isinstance(self.name, list):
+            self.name = [ref.name for ref in self.name]
+        else:
+            self.name = self.name.name
+        newStatements = []
+        flatParams = []
+        for parameter in self.params:
+            for param in parameter.flatten():
+                if isinstance(param, Parameter):
+                    temp = TempDef(param.expr)
+                    newStatements.append(temp)
+                    param.expr = TempRef(temp.name)
+                    flatParams.append(param)
+                else:
+                    newStatements.append(param)
+        self.params = flatParams
+        tempResult = TempDef(self)
+        return newStatements + [tempResult, TempRef(tempResult.name)]
+
     def __repr__(self):
         return (
             f"{type(self).__name__}("
@@ -73,27 +106,22 @@ class Call:
         )
 
 
-class Declare:
-    def __init__(self, typename, name, expr):
-        self.typename = typename
+class Declare(ExpressionContainer):
+    def __init__(self, typedata, name, expr):
+        self.typedata = typedata
         self.name = name
         self.expr = expr
-
-    def flatten(self):
-        flatExpr = self.expr.flatten()
-        self.expr = flatExpr.pop()
-        return flatExpr + [self]
 
     def __repr__(self):
         return (
             f"{type(self).__name__}("
             f"{self.name}, "
-            f"{self.typename}, "
+            f"{self.typedata}, "
             f"{self.expr})"
         )
 
 
-class New:
+class New(ExpressionContainer):
     def __init__(self, expr):
         self.expr = expr
 
@@ -104,7 +132,7 @@ class New:
         )
 
 
-class Shared:
+class Shared(ExpressionContainer):
     def __init__(self, expr):
         self.expr = expr
 
@@ -115,23 +143,7 @@ class Shared:
         )
 
 
-class Return:
-    def __init__(self, expr):
-        self.expr = expr
-
-    def flatten(self):
-        flatExpr = self.expr.flatten()
-        self.expr = flatExpr.pop()
-        return flatExpr + [self]
-
-    def __repr__(self):
-        return (
-            f"{type(self).__name__}("
-            f"{self.expr})"
-        )
-
-
-class Pre:
+class Return(ExpressionContainer):
     def __init__(self, expr):
         self.expr = expr
 
@@ -142,7 +154,7 @@ class Pre:
         )
 
 
-class Post:
+class Pre(ExpressionContainer):
     def __init__(self, expr):
         self.expr = expr
 
@@ -150,6 +162,40 @@ class Post:
         return (
             f"{type(self).__name__}("
             f"{self.expr})"
+        )
+
+
+class Post(ExpressionContainer):
+    def __init__(self, expr):
+        self.expr = expr
+
+    def __repr__(self):
+        return (
+            f"{type(self).__name__}("
+            f"{self.expr})"
+        )
+
+
+class TempDef:
+    def __init__(self, expr):
+        self.expr = expr
+        self.name = uuid.uuid4()
+
+    def __repr__(self):
+        return (
+            f"{type(self).__name__}("
+            f"{self.expr})"
+        )
+
+
+class TempRef:
+    def __init__(self, name):
+        self.name = name
+
+    def __repr__(self):
+        return (
+            f"{type(self).__name__}("
+            f"{self.name})"
         )
 
 
@@ -160,26 +206,31 @@ class BinOp:
         self.op = op
 
     def flatten(self):
-        print(f"flattening {self}")
+        self.right = self.right.flatten()
+        self.left = self.left.flatten()
         if isinstance(self.left, Literal):
-            print("left is literal")
             if isinstance(self.right, Literal):
-                print("right is literal")
-                if type(self.left) is type(self.right):
-                    print("same literal types")
-                    # try:
-                    return [eval(f"{type(self.left).__name__}(self.left.value {self.op} self.right.value)")] # compute literal
-                    # except Exception:
-                    #     raise SystemExit(f"Invalid expression: '{self.left.value}' {self.op} '{self.right.value}'")
+                if type(self.left) is type(self.right) and type(self.left):
+                    try:
+                        return [eval(f"{type(self.left).__name__}(self.left.value {self.op} self.right.value)")]
+                    except Exception:
+                        raise SystemExit(f"Invalid expression: '{self.left.value}' {self.op} '{self.right.value}'")
                 else:
-                    raise SystemExit(f"Cannot add two different literal types '{self.left}' and '{self.right}'")
-            self.right = self.right.flatten()
-        elif isinstance(self.right, Literal):
-            self.left = self.left.flatten()
-        else:
-            self.left = self.left.flatten()
-            self.right = self.right.flatten()
-        return [self]
+                    raise SystemExit(f"Operator '{self.op}' undefined for literals {self.left} and {self.right}")
+        if isinstance(self.left, TempDef):
+            if isinstance(self.right, TempDef):
+                stmts = [self.left, self.right]
+                self.left = TempRef(self.left.name)
+                self.right = TempRef(self.right.name)
+                return stmts + [self]
+            stmts = [self.left]
+            self.left = TempRef(self.left.name)
+            return stmts + [self]
+        if isinstance(self.right, TempDef):
+            stmts = [self.right]
+            self.right = TempRef(self.right.name)
+            return stmts + [self]
+        return TempDef(self)
 
     def __repr__(self):
         return (
@@ -209,7 +260,7 @@ class Div(BinOp):
         super().__init__(left, right, '/')
 
 
-class UnaryOp:
+class UnaryOp(ExpressionContainer):
     def __init__(self, expr):
         self.expr = expr
 
@@ -229,6 +280,9 @@ class TypeDef:
     def __init__(self, typedata, base_type):
         self.typedata = typedata 
         self.base_type = base_type
+
+    def flatten(self):
+        return [self]
 
     def __repr__(self):
         return (
@@ -320,7 +374,7 @@ class TypeData:
 
 class Literal:
     def flatten(self):
-        return [self]
+        return self
 
 
 class String(Literal):
@@ -328,21 +382,15 @@ class String(Literal):
         self.value = value
 
     def __repr__(self):
-        return (
-            f"{type(self).__name__}("
-            f"{self.value})"
-        )
+        return (f'"{self.value}"')
 
 
 class Integer(Literal):
     def __init__(self, value):
-        self.value = value
+        self.value = int(value)
 
     def __repr__(self):
-        return (
-            f"{type(self).__name__}("
-            f"{self.value})"
-        )
+        return (f"{self.value}")
 
 
 class Ref:
@@ -350,7 +398,7 @@ class Ref:
         self.name = name
 
     def flatten(self):
-        return [self]
+        return self
 
     def __repr__(self):
         return (

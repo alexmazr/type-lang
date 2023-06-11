@@ -1,11 +1,17 @@
-fn main() {
-    // mutable byte called 'name' that equals some expression
-    mut u8 name = 2 - ("x" + "t");
-    // update 'name' to equal "hello"
-    name = "hello";
-}
+// type u64 is unsigned<64>;
+// subtype u8 is u64 where unsigned<8>; // allows u8 to implicitly become a u64, but not u64 to u8
+// can compare across bit reps, but not set one to another for now
 
+type u8 is unsigned<8>;
+
+fn main() {
+    type u9 is unsigned<9>;
+    u9 l = 2;
+    u8 r = l + 6;
+    u8 result = add(l, r);
+}
 
 fn add(u8 x, u8 y) u8 {
-    return x + x;
+    return x + y;
 }
+

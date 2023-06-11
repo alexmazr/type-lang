@@ -261,13 +261,16 @@ def p_unary(p):
 def p_call(p):
     '''
     call : call LPAREN parameters RPAREN
-         | call DOT NAME
+         | call DOT ref
          | value
     '''
     if len(p) == 5:
         p[0] = ast.Call(p[1], p[3])
     elif len(p) == 4:
-        p[0] = p[3]
+        if not isinstance(p[1], list):
+            p[1] = [p[1]]
+        p[1].append(p[3])
+        p[0] = p[1]
     else:
         p[0] = p[1]
 
