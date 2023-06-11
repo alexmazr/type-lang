@@ -90,13 +90,13 @@ class Call:
                 if isinstance(param, Parameter):
                     temp = TempDef(param.expr)
                     newStatements.append(temp)
-                    param.expr = TempRef(temp.name)
+                    param.expr = Ref(temp.name)
                     flatParams.append(param)
                 else:
                     newStatements.append(param)
         self.params = flatParams
         tempResult = TempDef(self)
-        return newStatements + [tempResult, TempRef(tempResult.name)]
+        return newStatements + [tempResult, Ref(tempResult.name)]
 
     def __repr__(self):
         return (
@@ -176,6 +176,7 @@ class Post(ExpressionContainer):
         )
 
 
+# todo: remove single ref tempdefs
 class TempDef:
     def __init__(self, expr):
         self.expr = expr
@@ -185,17 +186,6 @@ class TempDef:
         return (
             f"{type(self).__name__}("
             f"{self.expr})"
-        )
-
-
-class TempRef:
-    def __init__(self, name):
-        self.name = name
-
-    def __repr__(self):
-        return (
-            f"{type(self).__name__}("
-            f"{self.name})"
         )
 
 
@@ -220,15 +210,15 @@ class BinOp:
         if isinstance(self.left, TempDef):
             if isinstance(self.right, TempDef):
                 stmts = [self.left, self.right]
-                self.left = TempRef(self.left.name)
-                self.right = TempRef(self.right.name)
+                self.left = Ref(self.left.name)
+                self.right = Ref(self.right.name)
                 return stmts + [self]
             stmts = [self.left]
-            self.left = TempRef(self.left.name)
+            self.left = Ref(self.left.name)
             return stmts + [self]
         if isinstance(self.right, TempDef):
             stmts = [self.right]
-            self.right = TempRef(self.right.name)
+            self.right = Ref(self.right.name)
             return stmts + [self]
         return TempDef(self)
 
@@ -261,8 +251,23 @@ class Div(BinOp):
 
 
 class UnaryOp(ExpressionContainer):
-    def __init__(self, expr):
+    def __init__(self, expr, op, ctr):
         self.expr = expr
+        self.op = op
+        self.ctr = ctr
+
+    def flatten(self):
+        if isinstance(self.expr, Literal):
+            try:
+                if isinstance(self.expr, String):
+                    raise SystemExit(f"Invalid unary op: '{self.op}' for '{self.expr.value}'")
+                return [self.ctr(eval(f"{self.op}{self.expr.value}"))]
+            except Exception:
+                raise SystemExit(f"Invalid unary op: '{self.op}' for '{self.expr.value}'")
+        super().flatten()
+        temp = TempDef(self.expr)
+        self.expr = Ref(temp.name)
+        return [temp, self]
 
     def __repr__(self):
         return (
@@ -273,7 +278,7 @@ class UnaryOp(ExpressionContainer):
 
 class USub(UnaryOp):
     def __init__(self, expr):
-        super().__init__(expr)
+        super().__init__(expr, '-', USub)
 
 
 class TypeDef:
@@ -295,6 +300,9 @@ class TypeDef:
 class Use:
     def __init__(self, locator):
         self.locator = locator
+
+    def flatten(self):
+        return [self]
 
     def __repr__(self):
         return (
@@ -382,7 +390,10 @@ class String(Literal):
         self.value = value
 
     def __repr__(self):
-        return (f'"{self.value}"')
+        return (
+            f"{type(self).__name__}("
+            f"{self.value})"
+        )
 
 
 class Integer(Literal):
@@ -390,7 +401,10 @@ class Integer(Literal):
         self.value = int(value)
 
     def __repr__(self):
-        return (f"{self.value}")
+        return (
+            f"{type(self).__name__}("
+            f"{self.value})"
+        )
 
 
 class Ref:
@@ -409,7 +423,16 @@ class Ref:
 
 class Unsigned:
     def __init__(self, sizeof):
-        self.sizeof = sizeof
+        self.sizeof = sizeof.value
+        self.low = 0
+        self.high = 2 ** self.sizeof - 1
+
+    def checkValid(self, expr):
+        if isinstance(expr, Integer):
+            if expr.value < self.low or expr.value > self.high:
+                raise SystemExit(f"Integer literal '{expr.value}' out of range for type '{self}'")
+        else:
+            raise SystemExit(f"'{expr}' is not a valid '{self}'")
 
     def __repr__(self):
         return (
