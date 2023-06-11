@@ -1,28 +1,24 @@
 from . import typeregistry
 from . import functionregistry
 from . import definitions
+from ..logging import logger
 from ctypes import *
 
+
+log = logger.Log()
+
+astLine = "========== ast =========="
+flatAstLine = "========== flat ast =========="
+registryLine = "========== registry =========="
+
+
 def compile(ast):
-    print("========== ast ==========")
-    print(ast)
-    print("========== ast ==========")
+    log.debug(f"{astLine}\n{ast}\n{astLine}")
     flatAst = ast.flatten()
-    print("========== flat ast ==========")
-    print(flatAst)
-    print("========== flat ast ==========")
+    log.debug(f"{flatAstLine}\n{flatAst}\n{flatAstLine}")
     checker = definitions.DefinitionRegistry(flatAst)
-    try:
-        checker.check()
-    except SystemExit as e:
-        print("========== registry ==========")
-        print(checker.registry)
-        print("========== registry ==========")
-        raise e
-    print("========== registry ==========")
-    print(checker.registry)
-    print("========== registry ==========")
-    print(c_uint8(255))
+    checker.check()
+    log.debug(f"{registryLine}\n{checker.registry}\n{registryLine}")
     return flatAst
     # build the program type registry
     # program_types = typeregistry.getProgramLevelTypes(ast)

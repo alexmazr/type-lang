@@ -3,9 +3,15 @@ from .parser import parser
 from .parser import lexer
 from .compiler import compiler
 from .runtime import unchecked
+from .logging import logger
 
 if __name__ == '__main__':
     name = sys.argv[2].split('.')[0]
+    if len(sys.argv) > 3:
+        match sys.argv[3]:
+            case '-d':
+                print("setting log level debug")
+                logger.level = logger.LogLevel.DEBUG
     if sys.argv[1] == 'lex':
         with open(sys.argv[2], 'r') as file:
             lexer.test(file.read())

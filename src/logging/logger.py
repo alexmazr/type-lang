@@ -1,14 +1,24 @@
 from enum import Enum
 
+
 class LogLevel(Enum):
-    INFO = 1
+    DEBUG = 1
     WARNING = 2
-    ERROR = 3
+
+
+level = LogLevel.WARNING
+
 
 class Log():
-    def __init__(self, level):
-        self.level = level
+    def error(self, message):
+        raise SystemExit(f"ERROR: {message}")
 
+    def warning(self, message):
+        global level
+        if level.value <= LogLevel.WARNING.value:
+            print(f"WARNING: {message}")
 
-    def log(self, level, message):
-
+    def debug(self, message):
+        global level
+        if level.value <= LogLevel.DEBUG.value:
+            print(message)

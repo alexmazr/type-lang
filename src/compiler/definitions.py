@@ -1,5 +1,8 @@
 from ..ast import ast
+from ..logging import logger
 
+
+log = logger.Log()
 
 class DefinitionRegistry:
     def __init__(self, program):
@@ -18,17 +21,20 @@ class DefinitionRegistry:
     def maybeAddDefinition(self, statement, namespace):
         match statement:
             case ast.TypeDef():
-                base_type = self.resolveBaseType(statement.base_type, namespace)
+                base_type = self.resolveTypeOf(statement.base_type, namespace)
                 self.addToRegistry(statement.typedata.name, base_type, namespace, "Type")
             case ast.FnDef():
                 self.addToRegistry(statement.name, statement, namespace, "Function")
             case ast.Declare():
-                base_type = self.resolveBaseType(statement.typedata, namespace)
-                expr = self.resolveBaseType(statement.expr, namespace)
+                base_type = self.resolveTypeOf(statement.typedata, namespace)
+                expr = self.resolveTypeOf(statement.expr, namespace)
                 expr = self.checkExpression(expr, base_type, namespace)
                 self.addToRegistry(statement.name, (expr, base_type), namespace, "Variable")
+            case ast.TempDef():
+                expr = self.resolveTypeOf(statement.expr, namespace)
+                self.addToRegistry(statement.name, (expr, ast.Unknown()), namespace, "Temp")
             case _:
-                print(f"WARNING: Statement '{statement}' not added to registry")
+                log.warning(f"Statement '{statement}' not added to registry")
 
     def definitionHandler(self, definition, namespace):
         node = self.registry[definition][namespace]
@@ -37,7 +43,7 @@ class DefinitionRegistry:
                 for statement in node.statements:
                     self.statementHandler(statement, namespace + (node.name,))
             case _:
-                print(f"WARNING: definition '{definition}' not checked")
+                log.warning(f"definition '{definition}' not checked")
 
     def statementHandler(self, statement, namespace):
         match statement:
@@ -49,17 +55,19 @@ class DefinitionRegistry:
             case ast.Declare():
                 typename = statement.typedata.name
                 if typename in self.registry:
-                    self.throwIfNotInNamespace(typename, namespace)
+                    self.getOrThrowIfNotInNamespace(typename, namespace)
                     self.maybeAddDefinition(statement, namespace)
                 else:
                     raise SystemExit(f"ERROR: Type '{typename}' unknown")
+            case ast.TempDef():
+                self.maybeAddDefinition(statement, namespace)
             case _:
-                print(f"WARNING: Statement '{statement}' not checked")
+                log.warning(f"Statement '{statement}' not checked")
 
     def addToRegistry(self, name, value, namespace, typeString):
         if name in self.registry:
             if namespace in self.registry[name]:
-                raise SystemExit(f"ERROR: {typeString} '{name}' already defined in '{dot(namespace)}'")
+                log.error(f"{typeString} '{name}' already defined in '{dot(namespace)}'")
             self.warnIfDefinitionHidesAnother(name, namespace)
             self.registry[name][namespace] = value
         else:
@@ -70,54 +78,71 @@ class DefinitionRegistry:
             base_type.checkValid(expr)
             return expr
         elif isinstance(expr, ast.Ref):
-            to_check = self.resolveBaseType(expr, namespace)
-            if to_check[1] is not base_type:
-                raise SystemExit(f"ERROR: Type mismatch in declaration '{statement}'")
+            to_check = self.resolveTypeOf(expr, namespace)
+            if isinstance(to_check[1], ast.Unknown):
+                base_type.checkValid(self.checkExpression(to_check[0], base_type, namespace))
+            elif not to_check[1].compare(base_type):
+                log.error(f"Type mismatch in declaration: found '{to_check[1]}', expecting '{base_type}'")
             return to_check[0]
         elif isinstance(expr, ast.BinOp):
-            # todo: check if simplifiable, then simplify, then check if type matches
-            # if not simplifiable then we cannot know the type range at compile time
-            expr.left = self.checkExpression(expr.left, base_type, namespace)
-            expr.right = self.checkExpression(expr.right, base_type, namespace)
+            # resolve left and right if either is a ref
+            if isinstance(expr.left, ast.Ref):
+                expr.left = self.checkExpression(expr.left, base_type, namespace)
+            if isinstance(expr.right, ast.Ref):
+                expr.right = self.checkExpression(expr.right, base_type, namespace)
+            # can only check valid if it's computable
+            if isinstance(expr.left, ast.Literal) and isinstance(expr.right, ast.Literal):
+                expr = expr.reduceOrThrow()
+                base_type.checkValid(expr)
+                return expr
             return expr
-
-    # def resolveAndThrowIfExpressionTypeMismatch(self, expr, namespace, base_type):
-    #     match base_type:
-    #         case ast.Unsigned()
-
-
-    def resolveBaseType(self, base_type, namespace):
-        if isinstance(base_type, ast.TypeData) or isinstance(base_type, ast.Ref):
-            if base_type.name in self.registry:
-                if namespace in self.registry[base_type.name]:
-                    return self.registry[base_type.name][namespace]
-                for i in range(1, len(namespace)):
-                    if namespace[:-i] in self.registry[base_type.name]:
-                        return self.registry[base_type.name][namespace[:-i]]
-                raise SystemExit(f"ERROR: Symbol '{base_type.name}' not visible in '{dot(namespace)}'")
-            raise SystemExit(f"ERROR: Symbol '{base_type.name}' not defined")
+        elif isinstance(expr, ast.Call):
+            # lookup call name in registry
+            fndef = self.getOrThrowIfNotInNamespace(expr.name, namespace)
+            # check return type matches expected type
+            rcontract = self.resolveTypeOf(fndef.rtype, namespace)
+            if not rcontract.compare(base_type):
+                log.error(f"Call to '{expr.name}' in '{dot(namespace)}' expects '{base_type}', but functions returns '{rcontract}'")
+            # match arguments (can only be refs)
+            self.typeCheckParameters(expr.params, fndef.args, namespace, expr.name)
         else:
-            return base_type
+            log.error(f"Type of expression '{expr}' not checked against '{base_type}'")
 
-    def throwIfNotInNamespace(self, name, namespace):
+    def typeCheckParameters(self, parameters, arguments, namespace, callto):
+        if len(parameters) != len(arguments):
+            log.error(f"Parameter count mismatch in call to '{callto}' in '{dot(namespace)}': found '{len(parameters)}', expecting '{len(arguments)}'")
+        for pair in zip(parameters, arguments):
+            param_pair = self.resolveTypeOf(pair[0].expr, namespace)
+            arg_type = self.resolveTypeOf(pair[1].typedata, namespace)
+            if isinstance(param_pair[1], ast.Unknown):
+                arg_type.checkValid(param_pair[0])
+            elif not param_pair[1].compare(arg_type):
+                log.error(f"Type mismatch in call to '{callto}' in '{dot(namespace)}': found '{arg_type}', expecting '{param_pair[1]}'")
+
+    def resolveTypeOf(self, to_resolve, namespace):
+        if isinstance(to_resolve, ast.TypeData) or isinstance(to_resolve, ast.Ref):
+            if to_resolve.name in self.registry:
+                return self.getOrThrowIfNotInNamespace(to_resolve.name, namespace)
+            elif isinstance(to_resolve.name, ast.Void):
+                return ast.Void()
+            log.error(f"Symbol '{to_resolve.name}' not defined")
+        else:
+            return to_resolve
+
+    def getOrThrowIfNotInNamespace(self, name, namespace):
         if namespace in self.registry[name]:
-            return
+            return self.registry[name][namespace]
         for i in range(1, len(namespace)):
             if namespace[:-i] in self.registry[name]:
-                return
-        raise SystemExit(f"ERROR: Type '{name}' not visible in '{dot(namespace)}'")
+                return self.registry[name][namespace[:-i]]
+        log.error(f"Type '{name}' not visible in '{dot(namespace)}'")
 
     def warnIfDefinitionHidesAnother(self, name, namespace):
         for i in range(1, len(namespace)):
             if namespace[:-i] in self.registry[name]:
-                print(f"WARNING: Definition '{dot(namespace)}.{name}' hides another definition with the same name in '{dot(namespace[:-1])}'")
+                log.warning(f"Definition '{dot(namespace)}.{name}' hides another definition with the same name in '{dot(namespace[:-1])}'")
                 return
+
 
 def dot(namespace):
     return '.'.join(namespace)
-
-
-
-
-
-

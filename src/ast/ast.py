@@ -85,18 +85,21 @@ class Call:
             self.name = self.name.name
         newStatements = []
         flatParams = []
-        for parameter in self.params:
-            for param in parameter.flatten():
-                if isinstance(param, Parameter):
-                    temp = TempDef(param.expr)
-                    newStatements.append(temp)
-                    param.expr = Ref(temp.name)
-                    flatParams.append(param)
-                else:
-                    newStatements.append(param)
+        if self.params is not None:
+            for parameter in self.params:
+                for param in parameter.flatten():
+                    if isinstance(param, Parameter):
+                        if not isinstance(param.expr, Ref):
+                            temp = TempDef(param.expr)
+                            newStatements.append(temp)
+                            param.expr = Ref(temp.name)
+                            flatParams.append(param)
+                        else:
+                            flatParams.append(param)
+                    else:
+                        newStatements.append(param)
         self.params = flatParams
-        tempResult = TempDef(self)
-        return newStatements + [tempResult, Ref(tempResult.name)]
+        return newStatements + [self]
 
     def __repr__(self):
         return (
@@ -200,13 +203,7 @@ class BinOp:
         self.left = self.left.flatten()
         if isinstance(self.left, Literal):
             if isinstance(self.right, Literal):
-                if type(self.left) is type(self.right) and type(self.left):
-                    try:
-                        return [eval(f"{type(self.left).__name__}(self.left.value {self.op} self.right.value)")]
-                    except Exception:
-                        raise SystemExit(f"Invalid expression: '{self.left.value}' {self.op} '{self.right.value}'")
-                else:
-                    raise SystemExit(f"Operator '{self.op}' undefined for literals {self.left} and {self.right}")
+                return [self.reduceOrThrow()]
         if isinstance(self.left, TempDef):
             if isinstance(self.right, TempDef):
                 stmts = [self.left, self.right]
@@ -221,6 +218,15 @@ class BinOp:
             self.right = Ref(self.right.name)
             return stmts + [self]
         return TempDef(self)
+
+    def reduceOrThrow(self):
+        if type(self.left) is type(self.right) and type(self.left):
+            try:
+                return eval(f"{type(self.left).__name__}(self.left.value {self.op} self.right.value)")
+            except Exception:
+                raise SystemExit(f"Invalid expression: '{self.left.value}' {self.op} '{self.right.value}'")
+        else:
+            raise SystemExit(f"Operator '{self.op}' undefined for literals {self.left} and {self.right}")
 
     def __repr__(self):
         return (
@@ -265,6 +271,8 @@ class UnaryOp(ExpressionContainer):
             except Exception:
                 raise SystemExit(f"Invalid unary op: '{self.op}' for '{self.expr.value}'")
         super().flatten()
+        if isinstance(self.expr, Ref):
+            return [self]
         temp = TempDef(self.expr)
         self.expr = Ref(temp.name)
         return [temp, self]
@@ -283,7 +291,7 @@ class USub(UnaryOp):
 
 class TypeDef:
     def __init__(self, typedata, base_type):
-        self.typedata = typedata 
+        self.typedata = typedata
         self.base_type = base_type
 
     def flatten(self):
@@ -359,6 +367,9 @@ class FnDef:
 
 
 class Void:
+    def compare(self, other):
+        return isinstance(other, Void)
+
     def __repr__(self):
         return (
             f"{type(self).__name__}()"
@@ -421,7 +432,16 @@ class Ref:
         )
 
 
-class Unsigned:
+class BaseType:
+    pass
+
+
+class Unknown(BaseType):
+    def __repr__(self):
+        return f"{type(self).__name__}()"
+
+
+class Unsigned(BaseType):
     def __init__(self, sizeof):
         self.sizeof = sizeof.value
         self.low = 0
@@ -433,6 +453,11 @@ class Unsigned:
                 raise SystemExit(f"Integer literal '{expr.value}' out of range for type '{self}'")
         else:
             raise SystemExit(f"'{expr}' is not a valid '{self}'")
+
+    def compare(self, other):
+        if isinstance(other, Unsigned):
+            return self.sizeof == other.sizeof
+        return False
 
     def __repr__(self):
         return (

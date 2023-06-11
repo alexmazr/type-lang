@@ -62,7 +62,7 @@ def p_function_definition(p):
     elif len(p) == 9:
         p[0] = ast.FnDef(p[3], p[1], p[5], False, p[7], p[8])
     else:
-        p[0] = ast.FnDef(p[3], p[1], p[5], False, ast.TypeData('void', None, None), p[7])
+        p[0] = ast.FnDef(p[3], p[1], p[5], False, ast.TypeData(ast.Void(), None, None), p[7])
 
 
 def p_arguments(p):
