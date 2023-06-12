@@ -21,18 +21,17 @@ class DefinitionRegistry:
     def maybeAddDefinition(self, statement, namespace):
         match statement:
             case ast.TypeDef():
-                base_type = self.resolveTypeOf(statement.base_type, namespace)
-                self.addToRegistry(statement.typedata.name, base_type, namespace, "Type")
+                self.addToRegistry(statement.typedata.name, statement.base_type, namespace, "Type")
             case ast.FnDef():
                 self.addToRegistry(statement.name, statement, namespace, "Function")
             case ast.Declare():
                 base_type = self.resolveTypeOf(statement.typedata, namespace)
-                expr = self.resolveTypeOf(statement.expr, namespace)
-                expr = self.checkExpression(expr, base_type, namespace)
+                expr = self.checkExpression(statement.expr, base_type, namespace)
                 self.addToRegistry(statement.name, (expr, base_type), namespace, "Variable")
             case ast.TempDef():
-                expr = self.resolveTypeOf(statement.expr, namespace)
-                self.addToRegistry(statement.name, (expr, ast.Unknown()), namespace, "Temp")
+                expr_type = self.resolveTypeOf(statement.expr, namespace)
+                expr = self.checkExpression(statement.expr, expr_type, namespace)
+                self.addToRegistry(statement.name, (expr, expr_type), namespace, "Temp")
             case _:
                 log.warning(f"Statement '{statement}' not added to registry")
 
@@ -58,7 +57,7 @@ class DefinitionRegistry:
                     self.getOrThrowIfNotInNamespace(typename, namespace)
                     self.maybeAddDefinition(statement, namespace)
                 else:
-                    raise SystemExit(f"ERROR: Type '{typename}' unknown")
+                    log.error(f"Type '{typename}' unknown")
             case ast.TempDef():
                 self.maybeAddDefinition(statement, namespace)
             case _:
@@ -75,6 +74,8 @@ class DefinitionRegistry:
 
     def checkExpression(self, expr, base_type, namespace):
         if isinstance(expr, ast.Literal):
+            if isinstance(base_type, ast.Unknown):
+                return expr
             base_type.checkValid(expr)
             return expr
         elif isinstance(expr, ast.Ref):
@@ -126,8 +127,24 @@ class DefinitionRegistry:
             elif isinstance(to_resolve.name, ast.Void):
                 return ast.Void()
             log.error(f"Symbol '{to_resolve.name}' not defined")
+        elif isinstance(to_resolve, ast.BinOp):
+            # resolve left and right if either is a ref
+            left = to_resolve.left
+            right = to_resolve.right
+            if isinstance(to_resolve.left, ast.Ref):
+                left = self.resolveTypeOf(to_resolve.left, namespace)
+            if isinstance(to_resolve.right, ast.Ref):
+                right = self.resolveTypeOf(to_resolve.right, namespace)
+            if not isinstance(left, ast.Literal):
+                if not isinstance(right, ast.Literal):
+                    if not left[1].compare(right[1]):
+                        log.error(f"Type mismatch in expression '{to_resolve}' in '{dot(namespace)}': '{to_resolve.left}' and '{to_resolve.right}'")
+                return left[1] # left and right are the same or right is a literal
+            elif not isinstance(right, ast.Literal):
+                return right[1] # left is a literal, right carries type info
+            log.error(f"Type of '{to_resolve.left}' and '{to_resolve.right}' unable to be resolved")
         else:
-            return to_resolve
+            return ast.Unknown()
 
     def getOrThrowIfNotInNamespace(self, name, namespace):
         if namespace in self.registry[name]:

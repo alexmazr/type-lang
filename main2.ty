@@ -7,12 +7,13 @@ type u10 is unsigned<10>;
 
 fn main() {
     // type u9 is unsigned<9>;
-    u8 l = 255;
+    u8 l = 240;
     u8 r = 1 + l + 10;
     //fn add() u8 {
     //    u8 l = 2;
     //}
     u8 result = add(l, r);
+    u8 result2 = add(result, 4);
 }
 
 fn add(u8 x, u8 y) u8 {

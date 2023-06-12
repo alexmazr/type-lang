@@ -19,6 +19,7 @@ def compile(ast):
     checker = definitions.DefinitionRegistry(flatAst)
     checker.check()
     log.debug(f"{registryLine}\n{checker.registry}\n{registryLine}")
+    log.error("Compiler only implemented up to type checking")
     return flatAst
     # build the program type registry
     # program_types = typeregistry.getProgramLevelTypes(ast)

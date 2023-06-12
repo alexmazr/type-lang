@@ -10,7 +10,6 @@ if __name__ == '__main__':
     if len(sys.argv) > 3:
         match sys.argv[3]:
             case '-d':
-                print("setting log level debug")
                 logger.level = logger.LogLevel.DEBUG
     if sys.argv[1] == 'lex':
         with open(sys.argv[2], 'r') as file:
