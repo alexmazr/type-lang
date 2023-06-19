@@ -42,6 +42,7 @@ note though that type has "hidden" types that you can't extend, but can syntacti
 - `signed`
 - `float`
 - `list`
+- `map`
 - `range`
 - `enum`
 - `record`
@@ -198,6 +199,29 @@ The order of the ? and ! do not matter. This will always result in an `enum` typ
 }
 ```
 And btw, any `enum` type that contains any `error` type can be "tried" (`try myEnum`) to coerce a `panic` if that enum is an error type.
+
+Map type:
+```
+type JsonVal is enum {
+  true,
+  false,
+  null,
+  String s,
+  
+}
+type JsonMap is map<String, JsonVal>;
+type Map<K, V> is map<K, V>;
+
+fn main() {
+  map d = {"hello": 23};
+  // could be mut map as well
+  Map d = new {};
+  
+  
+}
+
+
+```
 
 ### types and memory
 Type is semi-manually memory managed. By that I mean you won't see the words `malloc` or `free`, but you will have to think about memory and the rules
